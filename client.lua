@@ -15,9 +15,7 @@ local function isTargetCompliant(targetPed)
     -- 1. Check Native Task
     if GetIsTaskActive(targetPed, 134) then return true end
 
-    -- 2. Check Bone Height (Fail-safe)
-    -- If the hands (bones 60309 or 57005) are higher than the head (bone 31086), 
-    -- they definitely have their hands up.
+    -- 2. Bone Height Fail-safe (Hands above head check)
     local headPos = GetPedBoneCoords(targetPed, 31086, 0, 0, 0)
     local leftHandPos = GetPedBoneCoords(targetPed, 60309, 0, 0, 0)
     local rightHandPos = GetPedBoneCoords(targetPed, 57005, 0, 0, 0)
@@ -26,12 +24,7 @@ local function isTargetCompliant(targetPed)
         return true
     end
 
-    -- 3. Check for common Scenarios
-    if IsPedUsingAnyScenario(targetPed) or IsEntityPlayingAnim(targetPed, "nm", "handsup_fall", 3) then
-        return true
-    end
-
-    -- 4. Standard Animation List (Existing list)
+    -- 3. Check Animation Dictionaries
     local animations = {
         {dict = "random@mugging0", anim = "handsup_standing_base"},
         {dict = "missminuteman_1ig_2", anim = "handsup_base"},
@@ -49,6 +42,42 @@ local function isTargetCompliant(targetPed)
 
     return false
 end
+
+--------------------------------------------------------------------------------
+-- NPC THREAT LOGIC (FREEZE & HANDS UP)
+--------------------------------------------------------------------------------
+
+CreateThread(function()
+    while true do
+        local sleep = 1000
+        local playerPed = cache.ped
+
+        -- Detect if aiming or "locking on" with a weapon
+        if IsPlayerFreeAiming(PlayerId()) or IsControlPressed(0, 25) then
+            sleep = 250
+            local found, target = GetEntityPlayerIsFreeAimingAt(PlayerId())
+            
+            if found and DoesEntityExist(target) and not IsPedAPlayer(target) and IsEntityAPed(target) then
+                if not IsPedDeadOrDying(target, true) then
+                    -- 1. Make them freeze and put hands up
+                    if not GetIsTaskActive(target, 134) then
+                        ClearPedTasks(target)
+                        TaskHandsUp(target, Config.FreezeTime or 15000, playerPed, -1, false)
+                        SetEntityAsMissionEntity(target, true, true)
+                        SetBlockingOfNonTemporaryEvents(target, true) -- Stops them from running away
+                    end
+
+                    -- 2. Force them to drop weapon if they have one
+                    if IsPedArmed(target, 7) then
+                        SetPedDropsInventoryWeapon(target, GetSelectedPedWeapon(target), 0.0, 0.6, -1.0, 0)
+                        SetCurrentPedWeapon(target, `WEAPON_UNARMED`, true)
+                    end
+                end
+            end
+        end
+        Wait(sleep)
+    end
+end)
 
 --------------------------------------------------------------------------------
 -- CORE FUNCTIONS
@@ -95,7 +124,7 @@ function OpenActionMenu(targetId, isPlayer)
                         end
                     else 
                         if lib.progressBar({
-                            duration = 5000,
+                            duration = (Config.HoldUpTime or 10) * 1000,
                             label = 'Searching...',
                             useWhileDead = false,
                             canCancel = true,
@@ -138,7 +167,7 @@ local function togglePaperBag(targetPed, status)
             DisplayRadar(false) 
             bagTimerActive = true
             CreateThread(function()
-                local timer = (Config.PaperBagTime or 5) * 60 
+                local timer = (Config.PaperBagTime or 1) * 60 
                 while DoesEntityExist(currentBagProp) and bagTimerActive do
                     if not IsScreenFadedOut() then DoScreenFadeOut(0) end
                     Wait(1000)
@@ -223,7 +252,7 @@ exports.ox_target:addGlobalPlayer({{
     name = 'kapactions:interact_player', 
     icon = 'fa-solid fa-user-tag', 
     label = 'Interact', 
-    distance = 2.0,
+    distance = Config.TargetDistance or 2.0,
     canInteract = function(entity) 
         return isLocalPlayerArmed() 
     end,
@@ -237,7 +266,7 @@ exports.ox_target:addGlobalPed({{
     name = 'kapactions:interact_npc', 
     icon = 'fa-solid fa-person-rays', 
     label = 'Interact', 
-    distance = 2.0,
+    distance = Config.TargetDistance or 2.0,
     canInteract = function(entity) 
         return not IsPedAPlayer(entity) and isLocalPlayerArmed() 
     end,
@@ -302,30 +331,5 @@ CreateThread(function()
             end
         end
         Wait(sleep)
-    end
-end)
-
-RegisterCommand('checkanim', function()
-    local player, distance = lib.getClosestPlayer(GetEntityCoords(cache.ped), 3.0, false)
-    if player then
-        local targetPed = GetPlayerPed(player)
-        local dict = "Unknown"
-        local anim = "Unknown"
-        
-        -- This checks every common dictionary to see what is currently playing
-        local commonDicts = {"random@mugging0", "missminuteman_1ig_2", "mp_player_intupperhands_up", "nm", "random@arrests", "random@arrests@busted"}
-        
-        for _, d in ipairs(commonDicts) do
-            if IsEntityPlayingAnim(targetPed, d, "", 3) then -- Check if any anim in dict is playing
-                dict = d
-            end
-        end
-
-        print("--- ANIMATION DEBUG ---")
-        print("Native Task 134 (Hands Up):", GetIsTaskActive(targetPed, 134))
-        print("Detected Dictionary:", dict)
-        lib.notify({title = "Debug", description = "Check F8 Console", type = "inform"})
-    else
-        print("No player nearby to check.")
     end
 end)
