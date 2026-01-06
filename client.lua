@@ -11,6 +11,16 @@ local function isLocalPlayerArmed()
     return IsPedArmed(ped, 7)
 end
 
+local function isPedBlacklisted(ped)
+    local model = GetEntityModel(ped)
+    for _, blacklistedModel in ipairs(Config.BlacklistedPeds) do
+        if model == blacklistedModel then
+            return true
+        end
+    end
+    return false
+end
+
 local function isTargetCompliant(targetPed)
     -- 1. Check Native Task
     if GetIsTaskActive(targetPed, 134) then return true end
@@ -58,7 +68,7 @@ CreateThread(function()
             local found, target = GetEntityPlayerIsFreeAimingAt(PlayerId())
             
             if found and DoesEntityExist(target) and not IsPedAPlayer(target) and IsEntityAPed(target) then
-                if not IsPedDeadOrDying(target, true) then
+                if not IsPedDeadOrDying(target, true) and not isPedBlacklisted(target) then
                     -- 1. Make them freeze and put hands up
                     if not GetIsTaskActive(target, 134) then
                         ClearPedTasks(target)
@@ -268,7 +278,7 @@ exports.ox_target:addGlobalPed({{
     label = 'Interact', 
     distance = Config.TargetDistance or 2.0,
     canInteract = function(entity) 
-        return not IsPedAPlayer(entity) and isLocalPlayerArmed() 
+        return not IsPedAPlayer(entity) and isLocalPlayerArmed() and not isPedBlacklisted(entity)
     end,
     onSelect = function(data) 
         local netId = NetworkGetNetworkIdFromEntity(data.entity)

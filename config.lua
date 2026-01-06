@@ -20,3 +20,14 @@ Config.NPCLoot = {
     { item = 'sandwich', min = 1, max = 1, chance = 20 }, -- 20% chance for food
     { item = 'water', min = 1, max = 1, chance = 25 }
 }
+
+-- Blacklisted ped models (won't be affected by threat/holdup logic)
+Config.BlacklistedPeds = {
+    `s_m_m_prisguard_01`,  -- Prison Guard
+    `s_m_y_shop_mask`,     -- Mask Shop Keeper
+    `mp_m_shopkeep_01`,    -- Generic Shop Keeper
+    `s_m_m_armoured_01`,   -- Armored Truck Driver
+    `s_m_m_security_01`,   -- Security Guard
+    -- Add more ped models here as needed
+    -- You can find ped model names at: https://docs.fivem.net/docs/game-references/ped-models/
+}
